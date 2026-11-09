@@ -1,0 +1,878 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Neon Rhythm Reciprocity Piano</title>
+    <!-- Tailwind CSS for UI layout -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@500;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Rajdhani', sans-serif;
+            background-color: #06050e;
+            color: #ffffff;
+            overflow: hidden;
+            touch-action: manipulation;
+            user-select: none;
+        }
+
+        .font-orbitron {
+            font-family: 'Orbitron', sans-serif;
+        }
+
+        /* Lane Background Gradients */
+        .lane-bg {
+            background: linear-gradient(180deg, rgba(12, 10, 26, 0.4) 0%, rgba(20, 16, 46, 0.8) 85%, rgba(36, 26, 82, 0.95) 100%);
+        }
+
+        /* Dynamic Visual Reciprocity Glow Levels */
+        .reciprocity-tier-0 { filter: drop-shadow(0 0 4px rgba(139, 92, 246, 0.2)); }
+        .reciprocity-tier-1 { filter: drop-shadow(0 0 12px rgba(59, 130, 246, 0.5)); }
+        .reciprocity-tier-2 { filter: drop-shadow(0 0 24px rgba(236, 72, 153, 0.75)); }
+        .reciprocity-tier-3 { filter: drop-shadow(0 0 38px rgba(245, 158, 11, 0.95)); }
+
+        /* Key hit line pulse */
+        .hit-line {
+            box-shadow: 0 0 15px #00f3ff, 0 0 30px #00f3ff;
+        }
+
+        /* Büyütülmüş Nota Blokları */
+        .note-tile {
+            position: absolute;
+            width: 90%;
+            left: 5%;
+            height: 42px;
+            border-radius: 10px;
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.75);
+            transition: border-color 0.2s ease;
+        }
+
+        .note-lane-0 { background: linear-gradient(135deg, #ff0077, #ff5599); border: 3px solid #ffb3d9; }
+        .note-lane-1 { background: linear-gradient(135deg, #00d2ff, #0077ff); border: 3px solid #a6edff; }
+        .note-lane-2 { background: linear-gradient(135deg, #00ff88, #00b359); border: 3px solid #b3ffd9; }
+        .note-lane-3 { background: linear-gradient(135deg, #ffaa00, #ff6600); border: 3px solid #ffe6b3; }
+
+        /* Key press visual responses */
+        .key-active-0 { background: rgba(255, 0, 119, 0.45) !important; border-color: #ff0077 !important; box-shadow: 0 0 25px #ff0077; transform: translateY(2px); }
+        .key-active-1 { background: rgba(0, 210, 255, 0.45) !important; border-color: #00d2ff !important; box-shadow: 0 0 25px #00d2ff; transform: translateY(2px); }
+        .key-active-2 { background: rgba(0, 255, 136, 0.45) !important; border-color: #00ff88 !important; box-shadow: 0 0 25px #00ff88; transform: translateY(2px); }
+        .key-active-3 { background: rgba(255, 170, 0, 0.45) !important; border-color: #ffaa00 !important; box-shadow: 0 0 25px #ffaa00; transform: translateY(2px); }
+
+        /* Floating Score Text Keyframe */
+        @keyframes popAndFade {
+            0% { transform: translate(-50%, 0) scale(0.6); opacity: 0; }
+            30% { transform: translate(-50%, -18px) scale(1.25); opacity: 1; }
+            100% { transform: translate(-50%, -50px) scale(0.95); opacity: 0; }
+        }
+
+        .feedback-popup {
+            animation: popAndFade 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.27) FORWARDS;
+        }
+
+        /* Gül Animasyonu */
+        @keyframes bloom {
+            0% { transform: scale(0.2) rotate(-20deg); opacity: 0; filter: drop-shadow(0 0 0px red); }
+            60% { transform: scale(1.15) rotate(10deg); opacity: 1; filter: drop-shadow(0 0 35px #ff2a6d); }
+            100% { transform: scale(1) rotate(0deg); opacity: 1; filter: drop-shadow(0 0 25px #ff0055); }
+        }
+
+        .rose-bloom {
+            animation: bloom 1.2s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+        }
+
+        /* Scanline Overlay */
+        .scanline {
+            background: linear-gradient(
+                to bottom,
+                rgba(255,255,255,0),
+                rgba(255,255,255,0) 50%,
+                rgba(0, 0, 0, 0.35) 50%,
+                rgba(0, 0, 0, 0.35)
+            );
+            background-size: 100% 4px;
+        }
+    </style>
+</head>
+<body class="h-screen w-screen flex flex-col justify-between items-center relative overflow-hidden bg-slate-950">
+
+    <!-- Scanline effect -->
+    <div class="pointer-events-none absolute inset-0 scanline z-30 opacity-40"></div>
+
+    <!-- Background Glow -->
+    <div id="bgGlow" class="absolute inset-0 transition-all duration-700 pointer-events-none opacity-25 bg-gradient-to-b from-indigo-950 via-purple-950 to-black"></div>
+
+    <!-- Top HUD Navigation Bar -->
+    <header class="w-full max-w-4xl p-4 flex justify-between items-center z-20 relative font-orbitron">
+        <!-- Skor ve Canlar (3 Iskalama Hakkı) -->
+        <div class="flex flex-col">
+            <span class="text-xs text-slate-400 tracking-widest">SKOR</span>
+            <span id="scoreDisplay" class="text-3xl font-black text-cyan-400 tracking-wider">000000</span>
+            <!-- 3 Can Göstergesi -->
+            <div class="flex items-center gap-1.5 mt-1">
+                <span class="text-[11px] text-slate-400 font-bold mr-1">HAK:</span>
+                <span id="heartsContainer" class="text-base tracking-widest text-pink-500 drop-shadow">❤️❤️❤️</span>
+            </div>
+        </div>
+
+        <!-- Aşama & İlerleme Göstergesi -->
+        <div class="flex flex-col items-center w-1/2 max-w-xs">
+            <div class="flex justify-between w-full text-xs mb-1">
+                <span id="levelBadge" class="text-amber-400 font-extrabold tracking-widest">SEVİYE: 1 / 5</span>
+                <span id="flowTierText" class="text-pink-400 font-bold">1x PUAN</span>
+            </div>
+            <!-- Dynamic Flow Progress Bar -->
+            <div class="w-full bg-slate-800 h-3.5 rounded-full overflow-hidden border border-slate-700 p-0.5 shadow-inner">
+                <div id="flowBar" class="h-full bg-gradient-to-r from-cyan-500 via-purple-500 to-pink-500 w-1/2 rounded-full transition-all duration-200"></div>
+            </div>
+            <!-- Stage Progress Subtitle (5 Vuruşluk Takip) -->
+            <div class="flex justify-between w-full text-[10px] text-slate-400 mt-1">
+                <span>İlerleme: <span id="stageHitsCount" class="text-white font-bold">0</span>/5</span>
+                <span id="shieldBadge" class="hidden text-cyan-300 font-bold animate-pulse">🛡️ KALKAN AKTİF</span>
+            </div>
+        </div>
+
+        <!-- Combo & Accuracy HUD -->
+        <div class="flex flex-col items-end">
+            <div class="flex items-baseline gap-2">
+                <span class="text-xs text-slate-400">COMBO</span>
+                <span id="comboDisplay" class="text-2xl font-bold text-yellow-400">0</span>
+            </div>
+            <div class="flex items-baseline gap-1">
+                <span class="text-xs text-slate-400">ACC:</span>
+                <span id="accuracyDisplay" class="text-sm font-semibold text-emerald-400">100%</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Playing Field Container -->
+    <main class="relative flex-1 w-full max-w-lg mx-auto flex flex-col justify-end items-center z-10 px-2 pb-2">
+        <!-- 4-Lane Track -->
+        <div id="track" class="relative w-full h-full lane-bg rounded-t-2xl border-x-2 border-t-2 border-indigo-500/30 overflow-hidden flex shadow-2xl">
+            
+            <!-- Lane 0 (D Key - C4) -->
+            <div id="lane-0" class="relative flex-1 border-r border-indigo-500/15 flex flex-col justify-end items-center transition-colors">
+                <div class="absolute bottom-16 w-full h-1.5 border-b-2 border-pink-500/80 hit-line"></div>
+            </div>
+            <!-- Lane 1 (F Key - E4) -->
+            <div id="lane-1" class="relative flex-1 border-r border-indigo-500/15 flex flex-col justify-end items-center transition-colors">
+                <div class="absolute bottom-16 w-full h-1.5 border-b-2 border-cyan-500/80 hit-line"></div>
+            </div>
+            <!-- Lane 2 (J Key - G4) -->
+            <div id="lane-2" class="relative flex-1 border-r border-indigo-500/15 flex flex-col justify-end items-center transition-colors">
+                <div class="absolute bottom-16 w-full h-1.5 border-b-2 border-emerald-500/80 hit-line"></div>
+            </div>
+            <!-- Lane 3 (K Key - B4) -->
+            <div id="lane-3" class="relative flex-1 flex flex-col justify-end items-center transition-colors">
+                <div class="absolute bottom-16 w-full h-1.5 border-b-2 border-amber-500/80 hit-line"></div>
+            </div>
+
+            <!-- Canvas for Visual Particles Explosions -->
+            <canvas id="fxCanvas" class="absolute inset-0 pointer-events-none z-20"></canvas>
+
+            <!-- Text Feedback Container -->
+            <div id="feedbackContainer" class="absolute bottom-24 left-1/2 -translate-x-1/2 pointer-events-none z-30 font-orbitron font-black text-center"></div>
+        </div>
+
+        <!-- Touch/Click Key Buttons (D - F - J - K) -->
+        <div class="w-full grid grid-cols-4 gap-2 pt-2 z-20 font-orbitron">
+            <button id="btn-key-0" data-lane="0" class="h-16 rounded-xl bg-slate-900/90 border-2 border-pink-500/50 flex flex-col justify-center items-center active:scale-95 transition-all text-pink-400 hover:border-pink-400">
+                <span class="text-2xl font-bold">D</span>
+                <span class="text-[10px] text-slate-400">C4</span>
+            </button>
+            <button id="btn-key-1" data-lane="1" class="h-16 rounded-xl bg-slate-900/90 border-2 border-cyan-500/50 flex flex-col justify-center items-center active:scale-95 transition-all text-cyan-400 hover:border-cyan-400">
+                <span class="text-2xl font-bold">F</span>
+                <span class="text-[10px] text-slate-400">E4</span>
+            </button>
+            <button id="btn-key-2" data-lane="2" class="h-16 rounded-xl bg-slate-900/90 border-2 border-emerald-500/50 flex flex-col justify-center items-center active:scale-95 transition-all text-emerald-400 hover:border-emerald-400">
+                <span class="text-2xl font-bold">J</span>
+                <span class="text-[10px] text-slate-400">G4</span>
+            </button>
+            <button id="btn-key-3" data-lane="3" class="h-16 rounded-xl bg-slate-900/90 border-2 border-amber-500/50 flex flex-col justify-center items-center active:scale-95 transition-all text-amber-400 hover:border-amber-400">
+                <span class="text-2xl font-bold">K</span>
+                <span class="text-[10px] text-slate-400">B4</span>
+            </button>
+        </div>
+    </main>
+
+    <!-- Overlay: Start Game Menu -->
+    <div id="startOverlay" class="fixed inset-0 bg-slate-950/95 backdrop-blur-md flex flex-col justify-center items-center z-50 p-6 text-center">
+        <h1 class="text-4xl md:text-6xl font-black font-orbitron tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-pink-500 to-yellow-400 mb-2">
+            NEON RHYTHM
+        </h1>
+        <p class="text-sm md:text-base text-slate-300 max-w-md mb-6 font-semibold">
+            5 Aşamalı Ritim Performansı • D-F-J-K
+        </p>
+
+        <div class="bg-slate-900/90 p-5 rounded-2xl border border-indigo-500/30 max-w-md text-left text-sm mb-6 space-y-2">
+            <div class="flex items-center gap-2 text-cyan-400 font-orbitron font-bold">
+                <span>🎵 KURALLAR & OYUN AKIŞI</span>
+            </div>
+            <p class="text-slate-400 text-xs leading-relaxed">
+                • Her 5 başarılı vuruşta bir seviye atlarsın ve tempo hafifçe hızlanır.<br>
+                • Toplam <strong class="text-pink-400">3 ıskalama hakkın</strong> vardır; 3 hata yaparsan oyun biter.<br>
+                • 5 seviyeyi de başarıyla tamamlarsan tebrik gülün açar! 🌹
+            </p>
+        </div>
+
+        <!-- Key Bindings Hint -->
+        <div class="flex gap-3 mb-8">
+            <div class="px-5 py-2.5 bg-slate-900 border border-pink-500/60 rounded-xl text-pink-400 font-orbitron font-extrabold text-xl">D</div>
+            <div class="px-5 py-2.5 bg-slate-900 border border-cyan-500/60 rounded-xl text-cyan-400 font-orbitron font-extrabold text-xl">F</div>
+            <div class="px-5 py-2.5 bg-slate-900 border border-emerald-500/60 rounded-xl text-emerald-400 font-orbitron font-extrabold text-xl">J</div>
+            <div class="px-5 py-2.5 bg-slate-900 border border-amber-500/60 rounded-xl text-amber-400 font-orbitron font-extrabold text-xl">K</div>
+        </div>
+
+        <button id="startBtn" class="px-10 py-4 bg-gradient-to-r from-cyan-500 via-indigo-600 to-pink-500 text-white font-orbitron font-black text-xl rounded-2xl shadow-lg hover:shadow-cyan-500/50 hover:scale-105 active:scale-95 transition-all">
+            OYUNU BAŞLAT
+        </button>
+    </div>
+
+    <!-- Overlay: Game Over Screen -->
+    <div id="gameOverOverlay" class="hidden fixed inset-0 bg-slate-950/95 backdrop-blur-md flex flex-col justify-center items-center z-50 p-6 text-center">
+        <h2 class="text-4xl md:text-5xl font-black font-orbitron text-pink-500 mb-2">OYUN BİTTİ</h2>
+        <p class="text-slate-400 text-sm mb-6 font-semibold">3 Iskalama Hakkın Tükendi</p>
+
+        <!-- Final Stats Dashboard -->
+        <div class="bg-slate-900/90 border border-slate-800 p-6 rounded-2xl w-full max-w-sm mb-6 flex flex-col gap-3 font-orbitron">
+            <div class="flex justify-between items-center border-b border-slate-800 pb-2">
+                <span class="text-slate-400 text-xs">SKOR</span>
+                <span id="finalScore" class="text-2xl font-bold text-cyan-400">0</span>
+            </div>
+            <div class="flex justify-between items-center border-b border-slate-800 pb-2">
+                <span class="text-slate-400 text-xs">MAKSİMUM COMBO</span>
+                <span id="finalCombo" class="text-xl font-bold text-yellow-400">0</span>
+            </div>
+            <div class="flex justify-between items-center">
+                <span class="text-slate-400 text-xs">ULAŞILAN SEVİYE</span>
+                <span id="finalReachedStage" class="text-xl font-bold text-pink-400">1 / 5</span>
+            </div>
+        </div>
+
+        <button id="restartBtn" class="px-10 py-4 bg-gradient-to-r from-pink-500 to-purple-600 text-white font-orbitron font-black text-xl rounded-xl shadow-lg hover:scale-105 active:scale-95 transition-all">
+            TEKRAR BAŞLA
+        </button>
+    </div>
+
+    <!-- Overlay: Victory Screen with Blooming Rose -->
+    <div id="victoryOverlay" class="hidden fixed inset-0 bg-slate-950/95 backdrop-blur-md flex flex-col justify-center items-center z-50 p-6 text-center">
+        <!-- Blooming Rose Icon -->
+        <div class="rose-bloom text-8xl md:text-9xl mb-4 select-none">
+            🌹
+        </div>
+        
+        <h2 class="text-4xl md:text-5xl font-black font-orbitron text-transparent bg-clip-text bg-gradient-to-r from-pink-400 via-rose-500 to-amber-300 mb-2">
+            TEBRİKLER!
+        </h2>
+        <p class="text-slate-300 text-base max-w-md mb-6 font-semibold">
+            5 aşamayı da başarıyla tamamlayıp mükemmel bir uyum yakaladın. Bu gül senin için açtı!
+        </p>
+
+        <div class="bg-slate-900/90 border border-pink-500/40 p-6 rounded-2xl w-full max-w-sm mb-6 flex flex-col gap-3 font-orbitron">
+            <div class="flex justify-between items-center border-b border-slate-800 pb-2">
+                <span class="text-slate-400 text-xs">TOPLAM SKOR</span>
+                <span id="victoryScore" class="text-2xl font-bold text-cyan-400">0</span>
+            </div>
+            <div class="flex justify-between items-center border-b border-slate-800 pb-2">
+                <span class="text-slate-400 text-xs">MAKSİMUM COMBO</span>
+                <span id="victoryCombo" class="text-xl font-bold text-yellow-400">0</span>
+            </div>
+            <div class="flex justify-between items-center">
+                <span class="text-slate-400 text-xs">İSABET ORANI</span>
+                <span id="victoryAccuracy" class="text-xl font-bold text-emerald-400">100%</span>
+            </div>
+        </div>
+
+        <button id="victoryRestartBtn" class="px-10 py-4 bg-gradient-to-r from-rose-500 to-amber-400 text-slate-950 font-orbitron font-black text-xl rounded-xl shadow-lg hover:scale-105 active:scale-95 transition-all">
+            TEKRAR BAŞLA
+        </button>
+    </div>
+
+    <!-- Main JavaScript Logic -->
+    <script>
+        /**
+         * WEB AUDIO API SYNTHESIZER
+         */
+        class SoundEngine {
+            constructor() {
+                this.ctx = null;
+                this.laneFrequencies = [261.63, 329.63, 392.00, 493.88];
+            }
+
+            init() {
+                if (!this.ctx) {
+                    const AudioContext = window.AudioContext || window.webkitAudioContext;
+                    this.ctx = new AudioContext();
+                }
+                if (this.ctx.state === 'suspended') {
+                    this.ctx.resume();
+                }
+            }
+
+            playHit(laneIndex, tier = 0) {
+                if (!this.ctx) return;
+                
+                const now = this.ctx.currentTime;
+                const baseFreq = this.laneFrequencies[laneIndex];
+
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+
+                osc.type = tier >= 2 ? 'triangle' : 'sine';
+                osc.frequency.setValueAtTime(baseFreq, now);
+
+                if (tier >= 1) {
+                    const subOsc = this.ctx.createOscillator();
+                    const subGain = this.ctx.createGain();
+                    subOsc.type = 'sine';
+                    subOsc.frequency.setValueAtTime(baseFreq * 1.5, now);
+                    subGain.gain.setValueAtTime(0.08, now);
+                    subGain.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
+                    subOsc.connect(subGain);
+                    subGain.connect(this.ctx.destination);
+                    subOsc.start(now);
+                    subOsc.stop(now + 0.23);
+                }
+
+                gain.gain.setValueAtTime(0.3, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.28);
+
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+
+                osc.start(now);
+                osc.stop(now + 0.29);
+            }
+
+            playMiss() {
+                if (!this.ctx) return;
+                
+                const now = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(115, now);
+                osc.frequency.exponentialRampToValueAtTime(70, now + 0.18);
+
+                gain.gain.setValueAtTime(0.18, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
+
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+
+                osc.start(now);
+                osc.stop(now + 0.19);
+            }
+
+            playLevelUp() {
+                if (!this.ctx) return;
+                const now = this.ctx.currentTime;
+                const freqs = [523.25, 659.25, 783.99, 1046.50];
+                freqs.forEach((freq, idx) => {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(freq, now + idx * 0.08);
+                    gain.gain.setValueAtTime(0.2, now + idx * 0.08);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.08 + 0.2);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start(now + idx * 0.08);
+                    osc.stop(now + idx * 0.08 + 0.21);
+                });
+            }
+        }
+
+        /**
+         * CANVAS PARTICLE SYSTEM
+         */
+        class ParticleEngine {
+            constructor(canvas) {
+                this.canvas = canvas;
+                this.ctx = canvas.getContext('2d');
+                this.particles = [];
+                this.resize();
+                window.addEventListener('resize', () => this.resize());
+            }
+
+            resize() {
+                const rect = this.canvas.parentElement.getBoundingClientRect();
+                this.canvas.width = rect.width;
+                this.canvas.height = rect.height;
+            }
+
+            spawnBurst(x, y, color) {
+                const count = 18;
+                for (let i = 0; i < count; i++) {
+                    const angle = Math.random() * Math.PI * 2;
+                    const speed = Math.random() * 5.5 + 2;
+                    this.particles.push({
+                        x, y,
+                        vx: Math.cos(angle) * speed,
+                        vy: Math.sin(angle) * speed - 1.2,
+                        size: Math.random() * 4 + 2,
+                        color,
+                        alpha: 1,
+                        decay: Math.random() * 0.035 + 0.02
+                    });
+                }
+            }
+
+            updateAndRender() {
+                this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+
+                for (let i = this.particles.length - 1; i >= 0; i--) {
+                    const p = this.particles[i];
+                    p.x += p.vx;
+                    p.y += p.vy;
+                    p.alpha -= p.decay;
+
+                    if (p.alpha <= 0) {
+                        this.particles.splice(i, 1);
+                        continue;
+                    }
+
+                    this.ctx.save();
+                    this.ctx.globalAlpha = p.alpha;
+                    this.ctx.fillStyle = p.color;
+                    this.ctx.shadowColor = p.color;
+                    this.ctx.shadowBlur = 8;
+                    this.ctx.beginPath();
+                    this.ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                    this.ctx.fill();
+                    this.ctx.restore();
+                }
+            }
+        }
+
+        /**
+         * MAIN RHYTHM CONTROLLER (3 ISKALAMA HAKKI & 5 AŞAMA)
+         */
+        class RhythmGame {
+            constructor() {
+                this.track = document.getElementById('track');
+                this.lanes = [
+                    document.getElementById('lane-0'),
+                    document.getElementById('lane-1'),
+                    document.getElementById('lane-2'),
+                    document.getElementById('lane-3')
+                ];
+                this.scoreDisplay = document.getElementById('scoreDisplay');
+                this.comboDisplay = document.getElementById('comboDisplay');
+                this.accuracyDisplay = document.getElementById('accuracyDisplay');
+                this.flowBar = document.getElementById('flowBar');
+                this.flowTierText = document.getElementById('flowTierText');
+                this.shieldBadge = document.getElementById('shieldBadge');
+                this.bgGlow = document.getElementById('bgGlow');
+                this.feedbackContainer = document.getElementById('feedbackContainer');
+                this.levelBadge = document.getElementById('levelBadge');
+                this.stageHitsCount = document.getElementById('stageHitsCount');
+                this.heartsContainer = document.getElementById('heartsContainer');
+
+                this.startOverlay = document.getElementById('startOverlay');
+                this.gameOverOverlay = document.getElementById('gameOverOverlay');
+                this.victoryOverlay = document.getElementById('victoryOverlay');
+
+                this.audio = new SoundEngine();
+                this.particles = new ParticleEngine(document.getElementById('fxCanvas'));
+
+                // D - F - J - K tuş haritası
+                this.keyMap = {
+                    'KeyD': 0, 'd': 0, 'D': 0,
+                    'KeyF': 1, 'f': 1, 'F': 1,
+                    'KeyJ': 2, 'j': 2, 'J': 2,
+                    'KeyK': 3, 'k': 3, 'K': 3
+                };
+
+                this.laneColors = ['#ff0077', '#00d2ff', '#00ff88', '#ffaa00'];
+
+                // 5 Aşamalı Hız ve Aralık Ayarları (Her aşama 5 vuruş)
+                this.stages = [
+                    { stage: 1, speed: 0.22, interval: 1150, requiredHits: 5 },
+                    { stage: 2, speed: 0.29, interval: 950,  requiredHits: 5 },
+                    { stage: 3, speed: 0.38, interval: 780,  requiredHits: 5 },
+                    { stage: 4, speed: 0.48, interval: 620,  requiredHits: 5 },
+                    { stage: 5, speed: 0.60, interval: 480,  requiredHits: 5 }
+                ];
+
+                this.currentStageIndex = 0;
+                this.stageSuccessfulHits = 0;
+
+                this.isRunning = false;
+                this.notes = [];
+                this.score = 0;
+                this.combo = 0;
+                this.maxCombo = 0;
+                this.totalHits = 0;
+                this.successfulHits = 0;
+                this.counts = { perfect: 0, great: 0, good: 0, miss: 0 };
+
+                // 3 Iskalama / Can Sistemi
+                this.maxLives = 3;
+                this.lives = 3;
+
+                this.flowEnergy = 50;
+                this.flowTier = 0;
+                this.hasShield = false;
+
+                this.bindEvents();
+                this.gameLoop = this.gameLoop.bind(this);
+            }
+
+            bindEvents() {
+                window.addEventListener('keydown', (e) => {
+                    if (e.repeat) return;
+                    if (this.keyMap[e.code] !== undefined || this.keyMap[e.key] !== undefined) {
+                        const lane = this.keyMap[e.code] !== undefined ? this.keyMap[e.code] : this.keyMap[e.key];
+                        this.handleKeyPress(lane);
+                    }
+                });
+
+                window.addEventListener('keyup', (e) => {
+                    if (this.keyMap[e.code] !== undefined || this.keyMap[e.key] !== undefined) {
+                        const lane = this.keyMap[e.code] !== undefined ? this.keyMap[e.code] : this.keyMap[e.key];
+                        this.handleKeyRelease(lane);
+                    }
+                });
+
+                [0, 1, 2, 3].forEach(idx => {
+                    const btn = document.getElementById(`btn-key-${idx}`);
+                    const triggerPress = (e) => {
+                        e.preventDefault();
+                        this.audio.init();
+                        this.handleKeyPress(idx);
+                    };
+                    const triggerRelease = (e) => {
+                        e.preventDefault();
+                        this.handleKeyRelease(idx);
+                    };
+
+                    btn.addEventListener('touchstart', triggerPress, { passive: false });
+                    btn.addEventListener('touchend', triggerRelease, { passive: false });
+                    btn.addEventListener('mousedown', triggerPress);
+                    btn.addEventListener('mouseup', triggerRelease);
+                });
+
+                document.getElementById('startBtn').addEventListener('click', () => this.start());
+                document.getElementById('restartBtn').addEventListener('click', () => this.start());
+                document.getElementById('victoryRestartBtn').addEventListener('click', () => this.start());
+            }
+
+            start() {
+                this.audio.init();
+                this.startOverlay.classList.add('hidden');
+                this.gameOverOverlay.classList.add('hidden');
+                this.victoryOverlay.classList.add('hidden');
+
+                this.notes.forEach(n => n.element.remove());
+                this.notes = [];
+
+                this.currentStageIndex = 0;
+                this.stageSuccessfulHits = 0;
+
+                this.score = 0;
+                this.combo = 0;
+                this.maxCombo = 0;
+                this.totalHits = 0;
+                this.successfulHits = 0;
+                this.counts = { perfect: 0, great: 0, good: 0, miss: 0 };
+                
+                // Canları sıfırla
+                this.lives = this.maxLives;
+
+                this.flowEnergy = 50;
+                this.flowTier = 0;
+                this.hasShield = false;
+
+                this.updateStageHUD();
+                this.updateLivesHUD();
+                this.updateHUD();
+                this.isRunning = true;
+                this.lastTime = performance.now();
+                this.lastSpawnTime = performance.now();
+
+                requestAnimationFrame(this.gameLoop);
+            }
+
+            updateLivesHUD() {
+                let hearts = '';
+                for (let i = 0; i < this.maxLives; i++) {
+                    hearts += (i < this.lives) ? '❤️' : '🖤';
+                }
+                this.heartsContainer.textContent = hearts;
+            }
+
+            updateStageHUD() {
+                const currentStageNum = this.currentStageIndex + 1;
+                this.levelBadge.textContent = `SEVİYE: ${currentStageNum} / 5`;
+                this.stageHitsCount.textContent = this.stageSuccessfulHits.toString();
+            }
+
+            checkStageProgression() {
+                const currentStageConfig = this.stages[this.currentStageIndex];
+                
+                if (this.stageSuccessfulHits >= currentStageConfig.requiredHits) {
+                    if (this.currentStageIndex < this.stages.length - 1) {
+                        this.currentStageIndex++;
+                        this.stageSuccessfulHits = 0;
+                        this.audio.playLevelUp();
+                        this.showPopupText(`SEVİYE ${this.currentStageIndex + 1}!`, "text-amber-300 font-extrabold text-2xl");
+                    } else {
+                        this.triggerVictory();
+                        return;
+                    }
+                }
+                this.updateStageHUD();
+            }
+
+            triggerVictory() {
+                this.isRunning = false;
+                this.audio.playLevelUp();
+
+                this.notes.forEach(n => n.element.remove());
+                this.notes = [];
+
+                document.getElementById('victoryScore').textContent = this.score.toLocaleString();
+                document.getElementById('victoryCombo').textContent = this.maxCombo.toString();
+                const acc = this.totalHits > 0 ? Math.round((this.successfulHits / this.totalHits) * 100) : 100;
+                document.getElementById('victoryAccuracy').textContent = `${acc}%`;
+
+                this.victoryOverlay.classList.remove('hidden');
+            }
+
+            gameOver() {
+                this.isRunning = false;
+
+                document.getElementById('finalScore').textContent = this.score.toLocaleString();
+                document.getElementById('finalCombo').textContent = this.maxCombo.toString();
+                document.getElementById('finalReachedStage').textContent = `${this.currentStageIndex + 1} / 5`;
+
+                this.gameOverOverlay.classList.remove('hidden');
+            }
+
+            handleKeyPress(laneIndex) {
+                if (!this.isRunning) return;
+
+                const btn = document.getElementById(`btn-key-${laneIndex}`);
+                if (btn) btn.classList.add(`key-active-${laneIndex}`);
+
+                const trackHeight = this.track.clientHeight;
+                const hitTargetY = trackHeight - 64;
+                const hitTolerance = 105;
+
+                let hitFound = false;
+
+                for (let i = 0; i < this.notes.length; i++) {
+                    const note = this.notes[i];
+                    if (note.lane === laneIndex && !note.hit) {
+                        const dist = Math.abs(note.y - hitTargetY);
+
+                        if (dist <= hitTolerance) {
+                            hitFound = true;
+                            note.hit = true;
+                            note.element.remove();
+                            this.notes.splice(i, 1);
+
+                            let rating = "GOOD!";
+                            let scoreGain = 80;
+                            let flowGain = 6;
+                            let ratingKey = "good";
+                            let colorClass = "text-emerald-400";
+
+                            if (dist <= 35) {
+                                rating = "PERFECT!";
+                                scoreGain = 250;
+                                flowGain = 14;
+                                ratingKey = "perfect";
+                                colorClass = "text-yellow-300 shadow-yellow-500";
+                            } else if (dist <= 65) {
+                                rating = "GREAT!";
+                                scoreGain = 150;
+                                flowGain = 10;
+                                ratingKey = "great";
+                                colorClass = "text-cyan-300";
+                            }
+
+                            this.counts[ratingKey]++;
+                            this.stageSuccessfulHits++;
+                            this.registerHit(laneIndex, rating, scoreGain, flowGain, hitTargetY, colorClass);
+                            this.checkStageProgression();
+                            break;
+                        }
+                    }
+                }
+
+                if (!hitFound) {
+                    this.registerMiss(laneIndex, false);
+                }
+            }
+
+            handleKeyRelease(laneIndex) {
+                const btn = document.getElementById(`btn-key-${laneIndex}`);
+                if (btn) btn.classList.remove(`key-active-${laneIndex}`);
+            }
+
+            registerHit(laneIndex, rating, baseScore, flowGain, hitY, colorClass) {
+                this.combo++;
+                if (this.combo > this.maxCombo) this.maxCombo = this.combo;
+                this.totalHits++;
+                this.successfulHits++;
+
+                const multipliers = [1.0, 1.5, 2.0, 3.0];
+                const multiplier = multipliers[this.flowTier];
+                this.score += Math.round(baseScore * multiplier);
+
+                this.flowEnergy = Math.min(100, this.flowEnergy + flowGain);
+                this.checkFlowTier();
+
+                this.audio.playHit(laneIndex, this.flowTier);
+
+                const laneElem = this.lanes[laneIndex];
+                const laneRect = laneElem.getBoundingClientRect();
+                const trackRect = this.track.getBoundingClientRect();
+                const particleX = (laneRect.left - trackRect.left) + laneRect.width / 2;
+
+                this.particles.spawnBurst(particleX, hitY, this.laneColors[laneIndex]);
+                this.showPopupText(rating, colorClass);
+
+                this.updateHUD();
+            }
+
+            registerMiss(laneIndex, isPassedMiss = true) {
+                if (this.hasShield) {
+                    this.hasShield = false;
+                    this.shieldBadge.classList.add('hidden');
+                    this.showPopupText("KALKAN ENGELLEDİ!", "text-cyan-400 font-bold");
+                    return;
+                }
+
+                this.combo = 0;
+                if (isPassedMiss) {
+                    this.totalHits++;
+                    this.counts.miss++;
+                }
+
+                // 1 Can Kaybı
+                this.lives--;
+                this.updateLivesHUD();
+
+                const dropAmount = isPassedMiss ? 15 : 8;
+                this.flowEnergy = Math.max(0, this.flowEnergy - dropAmount);
+                this.checkFlowTier();
+
+                this.audio.playMiss();
+                this.showPopupText("ISKALAMA!", "text-pink-600 font-black");
+
+                // 3 Can bittiyse oyunu sonlandır
+                if (this.lives <= 0) {
+                    this.gameOver();
+                    return;
+                }
+
+                this.updateHUD();
+            }
+
+            checkFlowTier() {
+                const prevTier = this.flowTier;
+                
+                if (this.flowEnergy >= 85) this.flowTier = 3;
+                else if (this.flowEnergy >= 60) this.flowTier = 2;
+                else if (this.flowEnergy >= 30) this.flowTier = 1;
+                else this.flowTier = 0;
+
+                if (this.flowTier === 3 && prevTier < 3 && !this.hasShield) {
+                    this.hasShield = true;
+                    this.shieldBadge.classList.remove('hidden');
+                    this.showPopupText("FLOW MAX: KALKAN HAZIR!", "text-yellow-400 font-bold");
+                }
+
+                this.track.className = `relative w-full h-full lane-bg rounded-t-2xl border-x-2 border-t-2 border-indigo-500/30 overflow-hidden flex shadow-2xl reciprocity-tier-${this.flowTier}`;
+                
+                const glowColors = [
+                    'rgba(15, 23, 42, 0.4)',
+                    'rgba(37, 99, 235, 0.25)',
+                    'rgba(219, 39, 119, 0.35)',
+                    'rgba(245, 158, 11, 0.45)'
+                ];
+                this.bgGlow.style.backgroundColor = glowColors[this.flowTier];
+            }
+
+            showPopupText(text, textClass) {
+                const pop = document.createElement('div');
+                pop.className = `feedback-popup absolute text-xl font-black drop-shadow-md ${textClass}`;
+                pop.textContent = text;
+                this.feedbackContainer.appendChild(pop);
+
+                setTimeout(() => pop.remove(), 600);
+            }
+
+            updateHUD() {
+                this.scoreDisplay.textContent = this.score.toString().padStart(6, '0');
+                this.comboDisplay.textContent = this.combo.toString();
+                
+                const acc = this.totalHits > 0 ? Math.round((this.successfulHits / this.totalHits) * 100) : 100;
+                this.accuracyDisplay.textContent = `${acc}%`;
+
+                this.flowBar.style.width = `${this.flowEnergy}%`;
+                
+                const tierLabels = ["1.0x", "1.5x", "2.0x", "3.0x MAX"];
+                this.flowTierText.textContent = `${tierLabels[this.flowTier]} PUAN`;
+            }
+
+            spawnNote() {
+                const lane = Math.floor(Math.random() * 4);
+                const noteElem = document.createElement('div');
+                noteElem.className = `note-tile note-lane-${lane}`;
+                
+                this.lanes[lane].appendChild(noteElem);
+
+                this.notes.push({
+                    lane: lane,
+                    y: 0,
+                    element: noteElem,
+                    hit: false
+                });
+            }
+
+            gameLoop(timestamp) {
+                if (!this.isRunning) return;
+
+                const deltaTime = timestamp - this.lastTime;
+                this.lastTime = timestamp;
+
+                const currentStageConfig = this.stages[this.currentStageIndex];
+
+                if (timestamp - this.lastSpawnTime > currentStageConfig.interval) {
+                    this.spawnNote();
+                    this.lastSpawnTime = timestamp;
+                }
+
+                const trackHeight = this.track.clientHeight;
+                const missBoundary = trackHeight - 10;
+
+                for (let i = this.notes.length - 1; i >= 0; i--) {
+                    const note = this.notes[i];
+                    note.y += currentStageConfig.speed * deltaTime;
+                    note.element.style.top = `${note.y}px`;
+
+                    if (note.y > missBoundary && !note.hit) {
+                        note.element.remove();
+                        this.notes.splice(i, 1);
+                        this.registerMiss(note.lane, true);
+                    }
+                }
+
+                this.particles.updateAndRender();
+
+                requestAnimationFrame(this.gameLoop);
+            }
+        }
+
+        window.addEventListener('load', () => {
+            new RhythmGame();
+        });
+    </script>
+</body>
+</html>
